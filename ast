@@ -1,0 +1,55 @@
+package scanner
+
+import (
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"log"
+)
+
+type Function struct {
+	Name      string
+	CallerCheck bool // 是否检查了调用者身份
+	StateWrites []string // 修改的状态变量
+}
+
+func ParseFile(filePath string) ([]Function, error) {
+	fset := token.NewFileSet()
+	node, err := parser.ParseFile(fset, filePath, nil, parser.AllErrors)
+	if err != nil {
+		return nil, err
+	}
+
+	var functions []Function
+
+	ast.Inspect(node, func(n ast.Node) bool {
+		switch fn := n.(type) {
+		case *ast.FuncDecl:
+			funcInfo := Function{
+				Name:      fn.Name.Name,
+				CallerCheck: hasCallerCheck(fn),
+				StateWrites: findStateWrites(fn),
+			}
+			functions = append(functions, funcInfo)
+		}
+		return true
+	})
+
+	return functions, nil
+}
+
+// 检查是否包含调用者身份验证（示例：查找GetCreator调用）
+func hasCallerCheck(fn *ast.FuncDecl) bool {
+	// 实际项目中需更复杂的AST匹配逻辑
+	ast.Inspect(fn, func(n ast.Node) bool {
+		if call, ok := n.(*ast.CallExpr); ok {
+			if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
+				if sel.Sel.Name == "GetCreator" {
+					return true
+				}
+			}
+		}
+		return false
+	})
+	return false
+}
